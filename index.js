@@ -142,7 +142,7 @@ var replaceVar = (str) => {
         const vm = require('vm');
         const context = {};
         vm.runInNewContext(code, context);
-        console.log(context._0x5e1f47)
+        // 移除扩展防止报错变量
         return [Object.keys(context).slice(3), context]
       },
       //3、搜索已缓存，替换他
@@ -158,6 +158,7 @@ var replaceVar = (str) => {
               const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
               str = str.replace(rx, `'${cxvar.replace(/'/g, '\\\'')}'`)
             }
+            // @todo 添加 function 断言
           }
         }
         return str
