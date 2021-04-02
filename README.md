@@ -11,7 +11,7 @@ http://jsjiami.com/
 
 ## Step
 
-1、format your code 
+1、format your code, https://beautifier.io/
 
 2、find out the root dictionary
 

@@ -11,7 +11,14 @@ var escapeRegString = function (str) {
   return str.replace(matchOperatorsRe, '\\$&');
 };
 
-
+const isEmptyObject = obj => {
+  let name;
+  // tslint:disable-next-line:forin
+  for (name in obj) {
+    return false;
+  }
+  return true;
+}
 
 function repeat(ele, num) {
   return Array(num).fill(ele)
@@ -23,16 +30,14 @@ function repeat(ele, num) {
 let methodSymbol = [
   '===',
   '==',
-  'instanceof',
   '!==',
   '!=',
   '-',
+  '+',
   '<',
   '>',
   '<=',
-  '>=',
-  '&',
-  'in'
+  '>='
 ];
 
 
@@ -135,6 +140,7 @@ var replaceVar = (str) => {
       },
       // 2、 缓存到当前执行环境
       cache: (str) => {
+        // @todo 报错变量定义
         var code = `var eyou_basefile = ''; 
         var _0x150b0b = '';
         var __lang__ = '';
@@ -153,63 +159,103 @@ var replaceVar = (str) => {
           var match;
           // 存在匹配变量
           while(match = re.exec(str)) {
-            const cxvar =  context[item][match[2]];
-            if (typeof cxvar == 'string') {
+            if (!isEmptyObject(context[item])) {
+              const cxvar =  context[item][match[2]];
               const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
-              str = str.replace(rx, `'${cxvar.replace(/'/g, '\\\'')}'`)
+              if (typeof cxvar == 'string') {
+                str = str.replace(rx, `'${cxvar.replace(/'/g, '\\\'')}'`)
+              } else if (typeof cxvar == 'function') {
+                // @todo 添加 function 断言
+                // 获取执行函数调用，拆解入参
+                // str = replaceFunc(str, rx, match[0], cxvar.toString());
+              }
             }
-            // @todo 添加 function 断言
+
           }
         }
         return str
       }
-    }, 5)
+    }, 5),
+    // 局部函数字典
+    ...repeat({
+      type: 2,
+      //1、 查找特定开头的变量
+      find: (str) => {
+        // var _0x4a3a0c = \{ }
+        // /var\s+_0x[\S]{6}\s+?=\s+?\{/g
+        return findObj(new RegExp('var\\s+_0x[\\w]{6}\\s+?=\\s+?\\{', 'g'), str)
+      },
+      // 2、 缓存到当前执行环境
+      cache: (str) => {
+        // @todo 报错变量定义
+        var code = `var eyou_basefile = ''; 
+        var _0x150b0b = '';
+        var __lang__ = '';
+        ` + str.join('');
+        const vm = require('vm');
+        const context = {};
+        vm.runInNewContext(code, context);
+        // 移除扩展防止报错变量
+        return [Object.keys(context).slice(3), context]
+      },
+      //3、搜索已缓存，替换他
+      replace: (context, keys, str) => {
+        for (let index = 0; index < keys.length; index++) {
+          const item = keys[index];
+          const re = new RegExp(item + '\\[([\'\"]{1})([\\\S]{5})\\1\\]', 'g')
+          var match;
+          // 存在匹配变量
+          while(match = re.exec(str)) {
+            if (!isEmptyObject(context[item])) {
+              const cxvar =  context[item][match[2]];
+              const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
+              if (typeof cxvar == 'string') {
+                // str = str.replace(rx, `'${cxvar.replace(/'/g, '\\\'')}'`)
+              } else if (typeof cxvar == 'function') {
+                // @todo 添加 function 断言
+                // 获取执行函数调用，拆解入参
+                const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
+                str = replaceFunc(str, context,  rx, match[0], cxvar.toString());
+              }
+            } else {
+              // console.log('isEmptyObject', item , context[item])
+            }
+
+          }
+        }
+        return str
+      }
+    }, 5),
+    {
+      type: 1,
+      exec: () => {
+        // 16进制转10进制 
+        return /\b0x[0-9a-z]+\b/g
+      },
+      replace: () => {
+        return function (match) {
+          return parseInt(match, 16);
+        }
+      }
+    }
   ];
   rules.forEach(function (item) {
-    if (item.type == 2) { // 替换别名变量
-      var codes = item.find(str);
-      var [repKeys, context] = item.cache(codes);
-      str = item.replace(context, repKeys, str);
-    } else if (item.type == 1) {
-      str = str.replace(item.exec(), item.replace());
+    try{
+      if (item.type == 2) { // 替换别名变量
+        var codes = item.find(str);
+        var [repKeys, context] = item.cache(codes);
+        str = item.replace(context, repKeys, str);
+      } else if (item.type == 1) {
+        str = str.replace(item.exec(), item.replace());
+      }
+    } catch(e) {
+      console.log(e)
     }
+
   })
   return str;
 }
 
-/**
- * 查询函数
- * @param {*} str 字符串
- * @param {*} regex 函数开始标志
- * @param {array} splits 分隔符
- * @param {*} callback 查询loop回调
- */
-var searchScope = (str, funcstart, splits, callback) => {
-  let splitstart = splits[0];
-  let splitend = splits[1];
-  let match;
-  while (match = funcstart.exec(str)) {
-    let level = 0;
-    let left = match.index;
-    let right = 0;
-    let closed = false;
-    while (left = left + 1) {
-      if (str[left] == splitstart) {
-        level++;
-        closed = false;
-      }
-      if (str[left] == splitend) {
-        level--;
-        closed = true;
-      }
-      if (level == 0 && closed) {
-        right = left;
-        break;
-      }
-    }
-    callback({ match, funcstart, right });
-  }
-}
 
 /**
  * 获取调用函数参数，返回数组
@@ -224,16 +270,35 @@ var searchScope = (str, funcstart, splits, callback) => {
  * ```
  */
 var getArgs = (str) => {
+
   let cloneStr = str;
   let args = [];
   let funcstart = new RegExp('([^\\(,\\s])+?(?=\\()', 'g');
-  searchScope(str, funcstart, ["(", ")"], function({ match, right}){
+  let match;
+  while (match = funcstart.exec(str)) {
+    let level = 0;
+    let left = match.index;
+    let right = 0;
+    let closed = false;
+    while (left = left + 1) {
+      if (str[left] == "(") {
+        level++;
+        closed = false;
+      }
+      if (str[left] == ")") {
+        level--;
+        closed = true;
+      }
+      if (level == 0 && closed) {
+        right = left;
+        break;
+      }
+    }
     let current = str.slice(match.index, right + 1);
     str = str.replace(current, repeat("*",current.length).join(''))
-  })
+  }
   let spliter = /,\s?/g;
   let start = 0;
-  let match;
   while(match = spliter.exec(str)) {
       args.push(cloneStr.slice(start, match.index))
       // update split index
@@ -285,26 +350,42 @@ var findObj = (reglob, str) => {
 }
 
 /**
- * 查找函数对象
- * @param {*} str 字符串
- * @param {*} reg 函数开始标志
- * @param {*} splits 分隔符
+ * 替换函数
+ * @param {*} str 
  */
-var findFunc = (str) => {
-  let funcstart = new RegExp('(\\b[a-z_]\\["[a-zA-Z]{5}"\\])\\s*=\\s*function', 'g');
+var replaceFunc = (str, context, funcReg, funcName, functBody) => {
+  let opera = '';
+  // let callArgs = [];
+  methodSymbol.forEach((item) => {
+    if (new RegExp('\\s' + escapeRegString(item) + '\\s').test(functBody)) {
+      opera = item;
+    }
+  })
+  // 存在函数
+  if (/return\s+([\S]+?)\(([\S\s]*?)\)/.test(functBody)) {
+    const fnName = RegExp.$1;
+    if(~functBody.indexOf('[')) {
+      const rx = new RegExp(escapeRegString(fnName), 'g');
+      const fns = fnName.replace('[\'', '.').replace('\']', '').split('.')
+      const body = context[fns[0]][fns[1]];
+      // 递归调用
+      return replaceFunc(str, context, rx, fnName, body.toString())
+    } else {
+      opera = 'call'
+    }
+  }
   let match;
-  let arr = [];
-  while (match = funcstart.exec(str)) {
+  while (match = funcReg.exec(str)) {
     let level = 0;
     let left = match.index;
     let right = 0;
     let closed = false;
     while (left = left + 1) {
-      if (str[left] == "{") {
+      if (str[left] == "(") {
         level++;
         closed = false;
       }
-      if (str[left] == "}") {
+      if (str[left] == ")") {
         level--;
         closed = true;
       }
@@ -314,73 +395,23 @@ var findFunc = (str) => {
       }
     }
     let current = str.slice(match.index, right + 1);
-    let funcName = str.slice(match.index, funcstart.lastIndex + 1).split(' = ')[0];
-    let aliasFunc = funcName.replace('["', '.').replace('"]', '');
-    methodSymbol.forEach((opera) => {
-      if (new RegExp('\\s' + escapeRegString(opera) + '\\s').test(current)) {
-        arr.push([funcName, opera]);
-        arr.push([aliasFunc, opera]);
+    let args = current.replace(funcName, '').replace(/^\(/, '').replace(/\)$/, '');
+    let argz = getArgs(args);    
+    if (opera == 'call') {
+      // 拆解方法
+      let firstArg = argz.slice(0, 1);
+      let restArg = argz.slice(1);
+      if(restArg.length) {
+        str = str.replace(current, firstArg + '(' + restArg.join(', ') + ')');
+      } else {
+        str = str.replace(current, firstArg + '()');
       }
-    })
-    // 存在  x(), x(a), x(a, b) x(a, b, c)
-    // 复合函数
-    if (/return [a-z_]\([a-zA-Z_,\s]*\)/.test(current)) {
-      arr.push([funcName, 'call', current]);
-      arr.push([aliasFunc, 'call', current]);
+    } else {
+      // 拆解运算符
+      argz.splice(1, 0, opera)
+      str = str.replace(current, argz.join(' '));
     }
   }
-  return arr;
-}
-
-/**
- * 替换函数
- * @param {*} str 
- */
-var replaceFunc = (str) => {
-  let arrMix = findFunc(str);
-  arrMix.forEach((reItem) => {
-    let funcstart = new RegExp(escapeRegString(reItem[0]) + '(?=\\()', 'g');
-    let match;
-    let arr = [];
-    while (match = funcstart.exec(str)) {
-      let level = 0;
-      let left = match.index;
-      let right = 0;
-      let closed = false;
-      while (left = left + 1) {
-        if (str[left] == "(") {
-          level++;
-          closed = false;
-        }
-        if (str[left] == ")") {
-          level--;
-          closed = true;
-        }
-        if (level == 0 && closed) {
-          right = left;
-          break;
-        }
-      }
-      let current = str.slice(match.index, right + 1);
-      let args = current.replace(reItem[0], '').replace(/^\(/, '').replace(/\)$/, '');
-      // 复合函数
-      // t["eyXPW"]("object", t["eyXPW"](void 0, x) ? "undefined" : t["XUIJK"](l, x))
-      let argz = getArgs(args);      
-      if (reItem[1] == 'call') {
-        let firstArg = argz.slice(0, 1);
-        let restArg = argz.slice(1);
-        if(restArg.length) {
-          str = str.replace(current, firstArg + '(' + restArg.join(', ') + ')');
-        } else {
-          str = str.replace(current, firstArg + '()');
-        }
-      } else {
-        argz.splice(1, 0, reItem[1])
-        str = str.replace(current, argz.join(' '));
-      }
-      
-    }
-  })
   return str;
 }
 
@@ -484,18 +515,15 @@ function main() {
   template = replaceVar(template);
 
   
-  repeat('', 3).forEach(() => {
-    template = replaceFunc(template);
-  })
-  // 打扫现场
-  repeat('', 20).forEach(() => {
-    template = removeFunc(template);
-  })
-  repeat('', 20).forEach(() => {
-    template = removeVar(template);
-  })
 
-  template = removeEmptyLine(template);
+  // 打扫现场
+  // repeat('', 20).forEach(() => {
+  //   template = removeFunc(template);
+  // })
+  // repeat('', 20).forEach(() => {
+  //   template = removeVar(template);
+  // })
+  // template = removeEmptyLine(template);
 
   // 转换变量
   repeat('', 2).forEach(() => {
