@@ -34,12 +34,24 @@ let methodSymbol = [
   '!=',
   '-',
   '+',
+  '/',
+  '*',
   '<',
   '>',
   '<=',
-  '>='
+  '>=',
+  '&&',
+  '||',
+  '%',
+  'instanceof',
+  'in'
 ];
 
+const escapeStr = (str)=> {
+  // return String.raw({ raw: str })
+  return str.replace(/\\x(\w{2})/g,"\\\\x$1")
+  .replace(/\\([rnf])/g,"\\\\$1").replace(/'/g, "\\'")
+}
 
 
 // 这里是字典
@@ -125,10 +137,11 @@ var replaceVar = (str) => {
       },
       replace: () => {
         return function (match, $1, $2) {
-          return `'${_0x47bd($1, $2).replace(/'/g, '\\\'')}'`;
+          return `'${escapeStr(_0x47bd($1, $2))}'`;
         }
       }
-    },
+    }
+    ,
     // 局部函数字典
     ...repeat({
       type: 2,
@@ -136,7 +149,7 @@ var replaceVar = (str) => {
       find: (str) => {
         // var _0x4a3a0c = \{ }
         // /var\s+_0x[\S]{6}\s+?=\s+?\{/g
-        return findObj(new RegExp('var\\s+_0x[\\w]{6}\\s+?=\\s+?\\{', 'g'), str)
+        return findObj(str, new RegExp('var\\s+_0x[\\w]{6}\\s+?=\\s+?\\{', 'g'))
       },
       // 2、 缓存到当前执行环境
       cache: (str) => {
@@ -144,7 +157,7 @@ var replaceVar = (str) => {
         var code = `var eyou_basefile = ''; 
         var _0x150b0b = '';
         var __lang__ = '';
-        ` + str.join('');
+        ` + str.map(item =>  ';' + item + ';').join('');
         const vm = require('vm');
         const context = {};
         vm.runInNewContext(code, context);
@@ -163,11 +176,7 @@ var replaceVar = (str) => {
               const cxvar =  context[item][match[2]];
               const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
               if (typeof cxvar == 'string') {
-                str = str.replace(rx, `'${cxvar.replace(/'/g, '\\\'')}'`)
-              } else if (typeof cxvar == 'function') {
-                // @todo 添加 function 断言
-                // 获取执行函数调用，拆解入参
-                // str = replaceFunc(str, rx, match[0], cxvar.toString());
+                str = str.replace(rx,  `'${escapeStr(cxvar)}'`)
               }
             }
 
@@ -183,7 +192,7 @@ var replaceVar = (str) => {
       find: (str) => {
         // var _0x4a3a0c = \{ }
         // /var\s+_0x[\S]{6}\s+?=\s+?\{/g
-        return findObj(new RegExp('var\\s+_0x[\\w]{6}\\s+?=\\s+?\\{', 'g'), str)
+        return findObj(str, new RegExp('var\\s+_0x[\\w]{6}\\s+?=\\s+?\\{', 'g') )
       },
       // 2、 缓存到当前执行环境
       cache: (str) => {
@@ -191,7 +200,7 @@ var replaceVar = (str) => {
         var code = `var eyou_basefile = ''; 
         var _0x150b0b = '';
         var __lang__ = '';
-        ` + str.join('');
+        ` + str.map(item =>  ';' + item + ';').join('');
         const vm = require('vm');
         const context = {};
         vm.runInNewContext(code, context);
@@ -209,12 +218,9 @@ var replaceVar = (str) => {
             if (!isEmptyObject(context[item])) {
               const cxvar =  context[item][match[2]];
               const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
-              if (typeof cxvar == 'string') {
-                // str = str.replace(rx, `'${cxvar.replace(/'/g, '\\\'')}'`)
-              } else if (typeof cxvar == 'function') {
+              if (typeof cxvar == 'function') {
                 // @todo 添加 function 断言
                 // 获取执行函数调用，拆解入参
-                const rx = new RegExp(item + '\\[([\'\"]{1})'+ match[2] +'\\1\\]', 'g');
                 str = replaceFunc(str, context,  rx, match[0], cxvar.toString());
               }
             } else {
@@ -315,7 +321,7 @@ var getArgs = (str) => {
  * @param {*} str 
  * @returns 
  */
-var findObj = (reglob, str) => {
+var findObj = (str, reglob) => {
   let match;
   var arr = [];
   while (match = reglob.exec(str)) {
@@ -338,15 +344,16 @@ var findObj = (reglob, str) => {
       }
     }
     let current;
-    let currentDot = str.slice(right + 1, right + 2);
-    if (currentDot == ';' || currentDot == ',') {
-      current = str.slice(match.index, right + 2);
-    } else {
-      current = str.slice(match.index, right + 1);
-    }
+    current = str.slice(match.index, right + 1);
     arr.push(current)
   }
   return arr;
+}
+/**
+ * 
+ */
+var findObjPlus = (str, reglob) => {
+  
 }
 
 /**
@@ -527,7 +534,7 @@ function main() {
 
   // 转换变量
   repeat('', 2).forEach(() => {
-    template = convertVar(template);
+    // template = convertVar(template);
   })
 
   fs.writeFileSync(path.resolve(__dirname, crackName), template);
