@@ -425,15 +425,15 @@ var replaceFunc = (str, context, funcReg, funcName, functBody) => {
 }
 
 /**
- * 移除函数
+ * 移除混淆函数
  * @param {*} str 
  */
 var removeFunc = (str) => {
-  let funcstart = new RegExp('(\\b[a-z_]\\["[a-zA-Z]{5}"\\])\\s*=\\s*function', 'g');
+  let funcstart = new RegExp('var\\s+_0x[\\w]{6}\\s+?=\\s+?\\{', 'g') ;
   let match;
   while (match = funcstart.exec(str)) {
     let level = 0;
-    let left = match.index;
+    let left = match.index - 1;
     let right = 0;
     let closed = false;
     while (left = left + 1) {
@@ -485,7 +485,7 @@ var removeVar = (str) => {
  * @param {*} str 
  */
 var removeEmptyLine = (str) => {
-  let funcstart = /^\s*[\r\n]/gm;
+  let funcstart = /^\s*[\r\n\f]/gm;
   let match;
   while (match = funcstart.exec(str)) {
     let right = funcstart.lastIndex;
@@ -524,19 +524,16 @@ function main() {
   template = replaceVar(template);
 
   
-
   // 打扫现场
-  // repeat('', 20).forEach(() => {
-  //   template = removeFunc(template);
-  // })
+  template = removeFunc(template);
   // repeat('', 20).forEach(() => {
   //   template = removeVar(template);
   // })
-  // template = removeEmptyLine(template);
+  template = removeEmptyLine(template);
 
   // 转换变量
   repeat('', 2).forEach(() => {
-    // template = convertVar(template);
+    template = convertVar(template);
   })
 
   fs.writeFileSync(path.resolve(__dirname, crackName), template);
