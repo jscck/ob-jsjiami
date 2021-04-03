@@ -27,6 +27,11 @@ node index.js
 
 v5 通过测试
 
+v6 常规配置 通过测试
+
+v6 最高配置 js运行报错，不建议
+
+
 * 部分代码可能存在转义问题
 
 
@@ -53,7 +58,7 @@ var _0x5ab718 = _0x33598c;
 
 ## Finally
 
-IF YOU KNOW BABEL AST, TRY TO USE IT. 
+IF YOU KNOW BABEL AST, TRY TO USE BABEL. 
 
 ## LICENSE
 

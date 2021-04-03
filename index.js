@@ -126,6 +126,8 @@ var _0x47bd = function(_0x2ae79f, _0x33042e) {
   return _0x11acd9;
 }
 
+// 头部函数字典 定义
+var rootdict = '_0x47bd';
 
 
 var replaceVar = (str) => {
@@ -133,11 +135,11 @@ var replaceVar = (str) => {
     { // 头部函数字典，替换字典函数
       type: 1,
       exec: () => {
-        return new RegExp('_0x47bd\\\(\'([\\S]+?)\',\\\s+\'([\\S]+?)\'\\\)', 'g')
+        return new RegExp(rootdict + '\\\(\'([\\S]*?)\',\\\s+\'([\\S]*?)\'\\\)', 'g')
       },
       replace: () => {
         return function (match, $1, $2) {
-          return `'${escapeStr(_0x47bd($1, $2))}'`;
+          return `'${escapeStr(eval(rootdict)($1, $2))}'`;
         }
       }
     }
