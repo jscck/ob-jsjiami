@@ -58,13 +58,6 @@ var _0x5ab718 = _0x33598c;
 
 ```
 
-## 付费服务 (Paid Service)
-
-
-Connect Me, at least 200 RMB per time, https://www.paypal.com/paypalme/icai
-
-
-
 
 
 
